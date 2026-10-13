@@ -63,7 +63,7 @@ for i in range(1, 6):
         pyodide = await loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v0.27.7/full/"});
         status.textContent = "Python готов ✓";
         output.textContent = "Готово. Нажмите «Запустить код».";
-        run.disabled = language.value!=="python";
+        run.disabled = false;
       }catch(error){
         status.textContent = "Не удалось загрузить Python";
         output.textContent = String(error);
