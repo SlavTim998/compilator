@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0d1424">
-  <title>Compilator — онлайн Python</title>
+  <title>Compilator — Python и C++ онлайн</title>
   <style>
     :root{color-scheme:dark;font:16px system-ui,-apple-system,Segoe UI,sans-serif;background:#0d1424;color:#f0f5ff}
     *{box-sizing:border-box}body{margin:0;min-height:100vh}.wrap{max-width:1050px;margin:auto;padding:30px 20px}
@@ -25,23 +25,37 @@
 </head>
 <body>
   <main class="wrap">
-    <header><div><h1><span>⌘</span> Compilator</h1><p>Онлайн-компилятор Python 3 — запускай код прямо в браузере</p></div><span class="tag">Python • Pyodide</span></header>
-    <section class="panel" aria-label="Редактор Python"><div class="bar"><strong>main.py</strong><span>Ctrl + Enter — запустить</span></div>
+    <header><div><h1><span>⌘</span> Compilator</h1><p>Онлайн-редактор Python и C++ — запускай код прямо в браузере</p></div><span class="tag">Python + C++</span></header>
+    <section class="panel" aria-label="Редактор Python"><div class="bar"><strong id="filename">main.py</strong><span>Ctrl + Enter — запустить</span></div>
       <textarea id="code" spellcheck="false" aria-label="Код Python">print("Привет, мир! 🐍")
 for i in range(1, 6):
     print(f"Квадрат {i} = {i ** 2}")</textarea>
     </section>
-    <div class="actions"><button id="run" class="primary" disabled>▶ Запустить код</button><button id="clear">Очистить вывод</button><button id="reset">Пример кода</button><span id="status" role="status">Загрузка Python…</span></div>
-    <section class="panel" aria-label="Вывод программы"><div class="bar"><strong>Терминал</strong><span>stdout / stderr</span></div><pre id="output" aria-live="polite">Подготовка среды Python…</pre></section>
-    <footer>Python выполняется локально в вашем браузере. Код не отправляется на сервер. Для загрузки среды при первом запуске нужен интернет. Интерактивный input() не поддерживается.</footer>
+    <div class="actions"><label for="language">Язык: </label><select id="language" aria-label="Язык программирования" style="background:#253451;color:white;border:1px solid #435272;padding:10px;border-radius:10px"><option value="python">Python 3</option><option value="cpp">C++</option></select><button id="run" class="primary" disabled>▶ Запустить код</button><button id="clear">Очистить вывод</button><button id="reset">Пример кода</button><span id="status" role="status">Загрузка Python…</span></div>
+    <section class="panel" aria-label="Ввод программы"><div class="bar"><strong>Входные данные (stdin, для C++)</strong></div><textarea id="stdin" aria-label="Ввод программы" style="min-height:80px" placeholder="Например: 5"></textarea></section><section class="panel" aria-label="Вывод программы"><div class="bar"><strong>Терминал</strong><span>stdout / stderr</span></div><pre id="output" aria-live="polite">Подготовка среды Python…</pre></section>
+    <footer>Код выполняется в браузере, не отправляется на сервер. Python работает через Pyodide, а C++ — через JSCPP (учебный интерпретатор, поддерживает не весь C++ и STL). Интерактивный Python input() не поддерживается.</footer>
   </main>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/felixhao28/JSCPP@gh-pages/dist/JSCPP.es5.min.js"></script>
   <script>
     const code = document.getElementById("code");
     const output = document.getElementById("output");
     const run = document.getElementById("run");
     const status = document.getElementById("status");
     const defaultCode = code.value;
+    const cppExample = '#include <iostream>\nusing namespace std;\n\nint main() {\n    for (int i = 1; i <= 5; ++i) {\n        cout << "Square " << i << " = " << i * i << endl;\n    }\n    return 0;\n}';
+    const samples = {python:defaultCode,cpp:cppExample};
+    const drafts = {python:defaultCode,cpp:cppExample};
+    const language = document.getElementById("language");
+    language.addEventListener("change",()=>{
+      const prior = language.value === "cpp" ? "python" : "cpp";
+      drafts[prior]=code.value;
+      code.value=drafts[language.value];
+      document.getElementById("filename").textContent=language.value==="cpp"?"main.cpp":"main.py";
+      status.textContent=language.value==="cpp"?"C++ готов (JSCPP)":pyodide?"Python готов ✓":"Загрузка Python…";
+      run.disabled=language.value==="python"&&!pyodide;
+      output.textContent="Готово. Нажмите «Запустить код».";
+    });
     let pyodide;
     let running = false;
     async function initialize(){
@@ -49,19 +63,28 @@ for i in range(1, 6):
         pyodide = await loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v0.27.7/full/"});
         status.textContent = "Python готов ✓";
         output.textContent = "Готово. Нажмите «Запустить код».";
-        run.disabled = false;
+        run.disabled = language.value!=="python";
       }catch(error){
         status.textContent = "Не удалось загрузить Python";
         output.textContent = String(error);
       }
     }
     async function execute(){
-      if(!pyodide || running)return;
+      if((language.value==="python"&&!pyodide) || running)return;
       running=true;run.disabled=true;status.textContent="Выполняется…";output.textContent="";
       const lines=[];
       pyodide.setStdout({batched:(s)=>{lines.push(s);output.textContent=lines.join("\n")}});
       pyodide.setStderr({batched:(s)=>{lines.push(s);output.textContent=lines.join("\n")}});
       try{
+        if(language.value==="cpp"){
+          if(!window.JSCPP)throw new Error("Библиотека C++ не загрузилась. Проверьте интернет-соединение.");
+          const exitCode=JSCPP.run(code.value,document.getElementById("stdin").value,{
+            stdio:{write:(value)=>{lines.push(String(value));output.textContent=lines.join("");}}
+          });
+          output.textContent=lines.join("") || "Программа завершилась без вывода.";
+          status.textContent="C++ завершён (код "+exitCode+")";
+          return;
+        }
         await pyodide.loadPackagesFromImports(code.value);
         const value=await pyodide.runPythonAsync(code.value);
         if(value!==undefined && value!==null)lines.push(String(value));
@@ -69,11 +92,11 @@ for i in range(1, 6):
         status.textContent="Выполнено ✓";
       }catch(error){
         lines.push(String(error));output.textContent=lines.join("\n");status.textContent="Ошибка выполнения";
-      }finally{running=false;run.disabled=false}
+      }finally{running=false;run.disabled=language.value==="python"&&!pyodide}
     }
     run.addEventListener("click",execute);
     document.getElementById("clear").addEventListener("click",()=>output.textContent="");
-    document.getElementById("reset").addEventListener("click",()=>code.value=defaultCode);
+    document.getElementById("reset").addEventListener("click",()=>{code.value=samples[language.value];drafts[language.value]=code.value});
     code.addEventListener("keydown",event=>{
       if(event.key==="Enter" && (event.ctrlKey||event.metaKey)){event.preventDefault();execute();}
       if(event.key==="Tab"){event.preventDefault();const a=code.selectionStart,b=code.selectionEnd;code.setRangeText("    ",a,b,"end");}
