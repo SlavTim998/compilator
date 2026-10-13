@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0d1424">
+  <title>Compilator — онлайн Python</title>
+  <style>
+    :root{color-scheme:dark;font:16px system-ui,-apple-system,Segoe UI,sans-serif;background:#0d1424;color:#f0f5ff}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh}.wrap{max-width:1050px;margin:auto;padding:30px 20px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px}
+    h1{font-size:28px;margin:0}h1 span{color:#60a5fa}p{color:#aebbd0;margin:8px 0 0}
+    .tag{color:#a5b4fc;background:#202c49;border-radius:30px;padding:8px 12px;font-size:13px}
+    .panel{border:1px solid #2b3a56;background:#141e31;border-radius:16px;overflow:hidden;margin-bottom:16px}
+    .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#1d2b44;border-bottom:1px solid #2b3a56;padding:12px 16px;font-size:14px}
+    textarea{display:block;width:100%;min-height:330px;resize:vertical;border:0;outline:0;padding:20px;font:15px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;background:#141e31;color:#d7ebff;tab-size:4}
+    pre{min-height:130px;white-space:pre-wrap;overflow-wrap:anywhere;padding:20px;margin:0;font:14px/1.7 ui-monospace,Consolas,monospace;color:#b4f8cc}
+    .actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:18px}
+    button{border:1px solid #435272;background:#253451;color:white;padding:11px 18px;border-radius:10px;cursor:pointer;font-weight:650}
+    button.primary{background:#2563eb;border-color:#3b82f6}button:disabled{opacity:.55;cursor:wait}
+    #status{margin-left:auto;font-size:13px;color:#b6c4d9}
+    footer{font-size:13px;color:#93a4bd;line-height:1.5}
+    @media(max-width:600px){header{align-items:flex-start;flex-direction:column}#status{width:100%;margin:0}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header><div><h1><span>⌘</span> Compilator</h1><p>Онлайн-компилятор Python 3 — запускай код прямо в браузере</p></div><span class="tag">Python • Pyodide</span></header>
+    <section class="panel" aria-label="Редактор Python"><div class="bar"><strong>main.py</strong><span>Ctrl + Enter — запустить</span></div>
+      <textarea id="code" spellcheck="false" aria-label="Код Python">print("Привет, мир! 🐍")
+for i in range(1, 6):
+    print(f"Квадрат {i} = {i ** 2}")</textarea>
+    </section>
+    <div class="actions"><button id="run" class="primary" disabled>▶ Запустить код</button><button id="clear">Очистить вывод</button><button id="reset">Пример кода</button><span id="status" role="status">Загрузка Python…</span></div>
+    <section class="panel" aria-label="Вывод программы"><div class="bar"><strong>Терминал</strong><span>stdout / stderr</span></div><pre id="output" aria-live="polite">Подготовка среды Python…</pre></section>
+    <footer>Python выполняется локально в вашем браузере. Код не отправляется на сервер. Для загрузки среды при первом запуске нужен интернет. Интерактивный input() не поддерживается.</footer>
+  </main>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script>
+  <script>
+    const code = document.getElementById("code");
+    const output = document.getElementById("output");
+    const run = document.getElementById("run");
+    const status = document.getElementById("status");
+    const defaultCode = code.value;
+    let pyodide;
+    let running = false;
+    async function initialize(){
+      try{
+        pyodide = await loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v0.27.7/full/"});
+        status.textContent = "Python готов ✓";
+        output.textContent = "Готово. Нажмите «Запустить код».";
+        run.disabled = false;
+      }catch(error){
+        status.textContent = "Не удалось загрузить Python";
+        output.textContent = String(error);
+      }
+    }
+    async function execute(){
+      if(!pyodide || running)return;
+      running=true;run.disabled=true;status.textContent="Выполняется…";output.textContent="";
+      const lines=[];
+      pyodide.setStdout({batched:(s)=>{lines.push(s);output.textContent=lines.join("\n")}});
+      pyodide.setStderr({batched:(s)=>{lines.push(s);output.textContent=lines.join("\n")}});
+      try{
+        await pyodide.loadPackagesFromImports(code.value);
+        const value=await pyodide.runPythonAsync(code.value);
+        if(value!==undefined && value!==null)lines.push(String(value));
+        output.textContent=lines.join("\n") || "Программа завершилась без вывода.";
+        status.textContent="Выполнено ✓";
+      }catch(error){
+        lines.push(String(error));output.textContent=lines.join("\n");status.textContent="Ошибка выполнения";
+      }finally{running=false;run.disabled=false}
+    }
+    run.addEventListener("click",execute);
+    document.getElementById("clear").addEventListener("click",()=>output.textContent="");
+    document.getElementById("reset").addEventListener("click",()=>code.value=defaultCode);
+    code.addEventListener("keydown",event=>{
+      if(event.key==="Enter" && (event.ctrlKey||event.metaKey)){event.preventDefault();execute();}
+      if(event.key==="Tab"){event.preventDefault();const a=code.selectionStart,b=code.selectionEnd;code.setRangeText("    ",a,b,"end");}
+    });
+    initialize();
+  </script>
+</body>
+</html>
